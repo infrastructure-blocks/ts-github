@@ -257,6 +257,10 @@ function getInput(name: string): string | undefined {
 
 /**
  * GitHub action outputs are simple strings.
+ *
+ * Whatever isn't a string is JSON stringified. To be more explicit about it,
+ * this framework requires calling code to stringify themselves.
+ *
  */
 export type Outputs = Record<string, string>;
 
@@ -305,4 +309,53 @@ export async function parseOutputs(filePath?: string): Promise<Outputs> {
   }
 
   return result;
+}
+
+/**
+ * This function does away with the common boilerplate code related to running a GitHub Actions
+ * handler.
+ *
+ * The inputs are formally declared with the input validators argument. They are extracted out of the
+ * environment and passed on to the handler.
+ *
+ * The handler may or may not return {@link Outputs}. In the latter case, an empty object is expected.
+ *
+ * The outputs are forwarded to core.setOutput.
+ *
+ * The function also wraps the whole process with convenient debug statements that are turned on
+ * by setting ACTIONS_STEP_DEBUG to true.
+ *
+ * Any runtime errors occurring during this function's execution results in a call to core.setFailed.
+ *
+ * @param inputValidators - The set of validators to use to extract the inputs from the environment.
+ * @param handler - The GitHub Actions handler.
+ *
+ * @see https://docs.github.com/en/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging
+ */
+export function runActionHandler<I, O extends Outputs>(
+  inputValidators: {
+    [K in keyof I]: InputValidator<I[K]>;
+  },
+  handler: (config: Readonly<I>) => Promise<O>
+) {
+  try {
+    if (core.isDebug()) {
+      core.debug(`received env: ${JSON.stringify(process.env, null, 2)}`);
+      core.debug(`received context: ${JSON.stringify(context, null, 2)}`);
+    }
+
+    const inputs = getInputs(inputValidators);
+    handler(inputs)
+      .then((outputs) => {
+        for (const [key, value] of Object.entries(outputs)) {
+          if (core.isDebug()) {
+            core.debug(`setting output ${key}=${value}`);
+          }
+          core.setOutput(key, value);
+        }
+      })
+      .catch((err) => core.setFailed(VError.fullStack(err as Error)));
+  } catch (err) {
+    core.setFailed(VError.fullStack(err as Error));
+  }
 }

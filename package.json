@@ -23,7 +23,7 @@
     "test:integration": "mocha --config test/integration/.mocharc.js 'test/integration/**/*.spec.ts'"
   },
   "devDependencies": {
-    "@infra-blocks/test": "^0.2.0",
+    "@infra-blocks/test": "^0.3.0",
     "@octokit/openapi-types": "^19.1.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.10.3",
